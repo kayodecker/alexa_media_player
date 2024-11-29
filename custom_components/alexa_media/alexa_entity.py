@@ -81,6 +81,21 @@ def is_local(appliance: dict[str, Any]) -> bool:
         or appliance.get("manufacturerName") == "Sengled"
     ):
         return not is_skill(appliance)
+    
+    # Made for Amazon by Third Reality accessories
+    # Night Light for Echo Flex
+    if (
+        appliance.get("manufacturerName") == "Third Reality"
+        and appliance.get("friendlyDescription") == "Third Reality smart device"
+    ):
+        return True
+
+    # Amazon Smart Plug
+    if (
+        appliance.get("manufacturerName") == "Amazon"
+        and appliance.get("friendlyDescription") == "Amazon Smart Plug"
+    ):
+        return True
 
     # Zigbee devices are guaranteed to be local and have a particular pattern of id
     zigbee_pattern = re.compile(
