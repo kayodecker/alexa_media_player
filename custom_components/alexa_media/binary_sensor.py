@@ -97,8 +97,8 @@ class AlexaMotion(CoordinatorEntity, BinarySensorEntity):
 
         """
         super().__init__(coordinator)
-        self.alexa_entity_id = details["id"] + "_motion"
-        self._name = details["name"] + " Motion"
+        self.alexa_entity_id = details["id"]
+        self._name = details["name"]
 
     @property
     def name(self):
