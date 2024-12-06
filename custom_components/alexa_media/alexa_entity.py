@@ -144,12 +144,14 @@ def is_light(appliance: dict[str, Any]) -> bool:
     )
 
 
-def is_contact_sensor(appliance: dict[str, Any]) -> bool:
-    """Is the given appliance a contact sensor controlled locally by an Echo."""
+def is_motion_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance a motion sensor controlled locally by an Echo."""
     return (
         is_local(appliance)
-        and "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
-        and has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+        and (
+            "MOTION_SENSOR" in appliance.get("applianceTypes", [])
+            or has_capability(appliance, "Alexa.MotionSensor", "detectionState")
+        )
     )
 
 
@@ -237,7 +239,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     guards = []
     temperature_sensors = []
     air_quality_sensors = []
-    contact_sensors = []
+    motion_sensors = []
     switches = []
     location_details = network_details["locationDetails"]["locationDetails"]
     # pylint: disable=too-many-nested-blocks
@@ -312,11 +314,11 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
                         "colorTemperatureInKelvin",
                     )
                     lights.append(processed_appliance)
-                elif is_contact_sensor(appliance):
+                elif is_motion_sensor(appliance):
                     processed_appliance["battery_level"] = has_capability(
                         appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
                     )
-                    contact_sensors.append(processed_appliance)
+                    motion_sensors.append(processed_appliance)
                 else:
                     _LOGGER.debug("Found unsupported device %s", appliance)
 
@@ -325,7 +327,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "guard": guards,
         "temperature": temperature_sensors,
         "air_quality": air_quality_sensors,
-        "binary_sensor": contact_sensors,
+        "binary_sensor": motion_sensors,
         "smart_switch": switches,
     }
 
@@ -445,7 +447,7 @@ def parse_detection_state_from_coordinator(
 ) -> Optional[bool]:
     """Get the detection state from the coordinator data."""
     return parse_value_from_coordinator(
-        coordinator, entity_id, "Alexa.ContactSensor", "detectionState"
+        coordinator, entity_id, "Alexa.MotionSensor", "detectionState"
     )
 
 

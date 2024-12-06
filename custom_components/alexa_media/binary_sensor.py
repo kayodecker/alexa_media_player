@@ -53,9 +53,9 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
                 hide_serial(binary_entity["id"]),
                 binary_entity["name"],
             )
-            contact_sensor = AlexaContact(coordinator, binary_entity)
-            account_dict["entities"]["binary_sensor"].append(contact_sensor)
-            devices.append(contact_sensor)
+            motion_sensor = AlexaMotion(coordinator, binary_entity)
+            account_dict["entities"]["binary_sensor"].append(motion_sensor)
+            devices.append(motion_sensor)
 
     return await add_devices(
         hide_email(account),
@@ -83,13 +83,13 @@ async def async_unload_entry(hass, entry) -> bool:
     return True
 
 
-class AlexaContact(CoordinatorEntity, BinarySensorEntity):
-    """A contact sensor controlled by an Echo."""
+class AlexaMotion(CoordinatorEntity, BinarySensorEntity):
+    """A motion sensor controlled by an Echo."""
 
-    _attr_device_class = BinarySensorDeviceClass.DOOR
+    _attr_device_class = BinarySensorDeviceClass.MOTION
 
     def __init__(self, coordinator: CoordinatorEntity, details: dict):
-        """Initialize alexa contact sensor.
+        """Initialize alexa motion sensor.
 
         Args
             coordinator (CoordinatorEntity): Coordinator
@@ -97,8 +97,8 @@ class AlexaContact(CoordinatorEntity, BinarySensorEntity):
 
         """
         super().__init__(coordinator)
-        self.alexa_entity_id = details["id"]
-        self._name = details["name"]
+        self.alexa_entity_id = details["id"] + "_motion"
+        self._name = details["name"] + " Motion"
 
     @property
     def name(self):
