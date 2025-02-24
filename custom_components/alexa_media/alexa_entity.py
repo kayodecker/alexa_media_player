@@ -312,18 +312,25 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             "name": get_friendliest_name(appliance),
             "is_hue_v1": is_hue_v1(appliance),
         }
+
+        supported = False
         if is_alexa_guard(appliance):
-            guards.append(processed_appliance)
-        elif is_temperature_sensor(appliance):
+            guard = processed_appliance
+            guards.append(guard)
+            supported = True
+        if is_temperature_sensor(appliance):
             serial = get_device_serial(appliance)
-            processed_appliance["device_serial"] = (
+            temperature_sensor = processed_appliance
+            temperature_sensor["device_serial"] = (
                 serial if serial else appliance["entityId"]
             )
-            temperature_sensors.append(processed_appliance)
+            temperature_sensors.append(temperature_sensor)
+            supported = True
         # Code for Amazon Smart Air Quality Monitor
-        elif is_air_quality_sensor(appliance):
+        if is_air_quality_sensor(appliance):
             serial = get_device_serial(appliance)
-            processed_appliance["device_serial"] = (
+            air_quality_sensor = processed_appliance
+            air_quality_sensor["device_serial"] = (
                 serial if serial else appliance["entityId"]
             )
             # create array of air quality sensors. We must store the instance id against
@@ -349,39 +356,49 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
                         }
                         sensors.append(sensor)
                         _LOGGER.debug("AIAQM sensor detected %s", sensor)
-            processed_appliance["sensors"] = sensors
+            air_quality_sensor["sensors"] = sensors
 
             # Add as both temperature and air quality sensor
-            temperature_sensors.append(processed_appliance)
-            air_quality_sensors.append(processed_appliance)
-        elif is_switch(appliance):
-            switches.append(processed_appliance)
-        elif is_light(appliance):
-            processed_appliance["brightness"] = has_capability(
+            temperature_sensors.append(air_quality_sensor)
+            air_quality_sensors.append(air_quality_sensor)
+            supported = True
+        if is_switch(appliance):
+            switch = processed_appliance
+            switches.append(switch)
+            supported = True
+        if is_light(appliance):
+            light = processed_appliance
+            light["brightness"] = has_capability(
                 appliance, "Alexa.BrightnessController", "brightness"
             )
-            processed_appliance["color"] = has_capability(
+            light["color"] = has_capability(
                 appliance, "Alexa.ColorController", "color"
             )
-            processed_appliance["color_temperature"] = has_capability(
+            light["color_temperature"] = has_capability(
                 appliance,
                 "Alexa.ColorTemperatureController",
                 "colorTemperatureInKelvin",
             )
-            lights.append(processed_appliance)
-        elif is_contact_sensor(appliance):
-            processed_appliance["battery_level"] = has_capability(
+            lights.append(light)
+            supported = True
+        if is_contact_sensor(appliance):
+            contact_sensor = processed_appliance
+            contact_sensor["battery_level"] = has_capability(
                 appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
             )
-            processed_appliance["device_class"] = "door"
-            contact_sensors.append(processed_appliance)
-        elif is_motion_sensor(appliance):
-            processed_appliance["battery_level"] = has_capability(
+            contact_sensor["device_class"] = "door"
+            contact_sensors.append(contact_sensor)
+            supported = True
+        if is_motion_sensor(appliance):
+            motion_sensor = processed_appliance
+            motion_sensor["battery_level"] = has_capability(
                 appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
             )
-            processed_appliance["device_class"] = "motion"
-            motion_sensors.append(processed_appliance)
-        else:
+            motion_sensor["device_class"] = "motion"
+            motion_sensors.append(motion_sensor)
+            supported = True
+        
+        if not supported:
             _LOGGER.debug("Found unsupported device %s", appliance)
 
     return {
