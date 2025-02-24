@@ -166,8 +166,10 @@ def is_contact_sensor(appliance: dict[str, Any]) -> bool:
     """Is the given appliance a contact sensor controlled locally by an Echo."""
     return (
         is_local(appliance)
-        and "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
-        and has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+        and (
+            "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
+            or has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+        )
     )
 
 
@@ -242,6 +244,7 @@ class AlexaEntity(TypedDict):
     appliance_id: str
     name: str
     is_hue_v1: bool
+    device_serial: str
 
 
 class AlexaLightEntity(AlexaEntity):
@@ -252,32 +255,15 @@ class AlexaLightEntity(AlexaEntity):
     color_temperature: bool
 
 
-class AlexaTemperatureEntity(AlexaEntity):
-    """Class for AlexaTemperatureEntity."""
-
-    device_serial: str
-
-
-class AlexaAirQualityEntity(AlexaEntity):
-    """Class for AlexaAirQualityEntity."""
-
-    device_serial: str
-
-
-class AlexaBinaryEntity(AlexaEntity):
-    """Class for AlexaBinaryEntity."""
-
-    battery_level: bool
-
-
 class AlexaEntities(TypedDict):
     """Class for holding entities."""
 
     light: list[AlexaLightEntity]
     guard: list[AlexaEntity]
-    temperature: list[AlexaTemperatureEntity]
-    air_quality: list[AlexaAirQualityEntity]
-    binary_sensor: list[AlexaBinaryEntity]
+    temperature: list[AlexaEntity]
+    air_quality: list[AlexaEntity]
+    binary_sensor: list[AlexaEntity]
+    smart_switch: list[AlexaEntity]
 
 
 def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEntities:
@@ -306,11 +292,15 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             _LOGGER.debug("Found Home Assistant bridge, skipping %s", appliance)
             continue
 
+        serial = get_device_serial(appliance)
         processed_appliance = {
             "id": appliance["entityId"],
             "appliance_id": appliance["applianceId"],
             "name": get_friendliest_name(appliance),
             "is_hue_v1": is_hue_v1(appliance),
+            "device_serial": (
+                serial if serial else appliance["entityId"]
+            )
         }
 
         supported = False
@@ -319,20 +309,12 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             guards.append(guard)
             supported = True
         if is_temperature_sensor(appliance):
-            serial = get_device_serial(appliance)
             temperature_sensor = processed_appliance
-            temperature_sensor["device_serial"] = (
-                serial if serial else appliance["entityId"]
-            )
             temperature_sensors.append(temperature_sensor)
             supported = True
         # Code for Amazon Smart Air Quality Monitor
         if is_air_quality_sensor(appliance):
-            serial = get_device_serial(appliance)
             air_quality_sensor = processed_appliance
-            air_quality_sensor["device_serial"] = (
-                serial if serial else appliance["entityId"]
-            )
             # create array of air quality sensors. We must store the instance id against
             # the assetId so we know which sensors are which.
             sensors = []
@@ -383,17 +365,11 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             supported = True
         if is_contact_sensor(appliance):
             contact_sensor = processed_appliance
-            contact_sensor["battery_level"] = has_capability(
-                appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
-            )
             contact_sensor["device_class"] = "door"
             contact_sensors.append(contact_sensor)
             supported = True
         if is_motion_sensor(appliance):
             motion_sensor = processed_appliance
-            motion_sensor["battery_level"] = has_capability(
-                appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
-            )
             motion_sensor["device_class"] = "motion"
             motion_sensors.append(motion_sensor)
             supported = True
