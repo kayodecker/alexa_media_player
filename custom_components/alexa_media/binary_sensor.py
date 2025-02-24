@@ -49,10 +49,10 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
     if binary_entities and account_dict["options"].get(CONF_EXTENDED_ENTITY_DISCOVERY):
         for binary_entity in binary_entities:
             _LOGGER.debug(
-                "Creating entity %s for a binary_sensor with name %s and class %s",
+                "Creating entity %s for a binary_sensor with name %s (%s)",
                 hide_serial(binary_entity["id"]),
                 binary_entity["name"],
-                binary_entity["device_class"],
+                binary_entity,
             )
             
             if binary_entity["device_class"] == "door":
