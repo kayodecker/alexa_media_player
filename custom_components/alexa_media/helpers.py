@@ -49,7 +49,7 @@ async def add_devices(
         new_devices.append(device)
     devices = new_devices
     if devices:
-        _LOGGER.debug("%s: Adding %s", account, devices)
+        _LOGGER.debug("%s: Adding %s", account, [device.name for device in devices])
         try:
             add_devices_callback(devices, False)
             return True
@@ -59,7 +59,7 @@ async def add_devices(
                 _LOGGER.debug("%s: Device already added: %s", account, message)
             else:
                 _LOGGER.debug(
-                    "%s: Unable to add devices: %s : %s", account, devices, message
+                    "%s: Unable to add devices: %s : %s", account, [device.name for device in devices], message
                 )
         except BaseException as ex:  # pylint: disable=broad-except
             _LOGGER.debug(

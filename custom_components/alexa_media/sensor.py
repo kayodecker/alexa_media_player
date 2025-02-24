@@ -222,7 +222,7 @@ async def create_air_quality_sensors(account_dict, air_quality_entities):
                 instance,
                 unit,
             )
-            _LOGGER.debug("Create air quality sensors %s", sensor)
+            _LOGGER.debug("Create air quality sensors %s", subsensor)
             account_dict["entities"]["sensor"].setdefault(serial, {})
             account_dict["entities"]["sensor"][serial].setdefault(sensor_type, {})
             account_dict["entities"]["sensor"][serial][sensor_type][
