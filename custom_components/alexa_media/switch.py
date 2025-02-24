@@ -118,10 +118,13 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
                     alexa_client,
                 )
     # Add Amazon Smart Plug devices
+    hue_emulated_enabled = "emulated_hue" in hass.config.as_dict().get(
+        "components", set()
+    )
     switch_entities = account_dict.get("devices", {}).get("smart_switch", [])
     if switch_entities and account_dict["options"].get(CONF_EXTENDED_ENTITY_DISCOVERY):
         for switch_entity in switch_entities:
-            if not (switch_entity["is_hue_v1"] and hue_emulated_enabled):
+            if not (switch_entity["is_hue_v1"] or hue_emulated_enabled):
                 _LOGGER.debug(
                     "Creating entity %s for a switch with name %s",
                     hide_serial(switch_entity["id"]),
