@@ -483,6 +483,12 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             if guard.enabled:
                 entities_to_monitor.add(guard.unique_id)
 
+        for switch in hass.data[DATA_ALEXAMEDIA]["accounts"][email]["entities"][
+            "smart_switch"
+        ]:
+            if switch.enabled:
+                entities_to_monitor.add(switch.alexa_entity_id)
+
         if entities_to_monitor:
             tasks.append(get_entity_data(login_obj, list(entities_to_monitor)))
 

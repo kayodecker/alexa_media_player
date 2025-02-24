@@ -97,6 +97,21 @@ def is_local(appliance: dict[str, Any]) -> bool:
     manufacturerNames = ["Ledvance", "Sengled", "Amazon"]
     if appliance.get("manufacturerName") in manufacturerNames:
         return not is_skill(appliance)
+    
+    # Made for Amazon by Third Reality accessories
+    # Night Light for Echo Flex
+    if (
+        appliance.get("manufacturerName") == "Third Reality"
+        and appliance.get("friendlyDescription") == "Third Reality smart device"
+    ):
+        return True
+
+    # Amazon Smart Plug
+    if (
+        appliance.get("manufacturerName") == "Amazon"
+        and appliance.get("friendlyDescription") == "Amazon Smart Plug"
+    ):
+        return True
 
     # Zigbee devices are guaranteed to be local and have a particular pattern of id
     zigbee_pattern = re.compile(
@@ -153,6 +168,17 @@ def is_contact_sensor(appliance: dict[str, Any]) -> bool:
         is_local(appliance)
         and "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
         and has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+    )
+
+
+def is_motion_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance a motion sensor controlled locally by an Echo."""
+    return (
+        is_local(appliance)
+        and (
+            "MOTION_SENSOR" in appliance.get("applianceTypes", [])
+            or has_capability(appliance, "Alexa.MotionSensor", "detectionState")
+        )
     )
 
 
@@ -262,6 +288,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     temperature_sensors = []
     air_quality_sensors = []
     contact_sensors = []
+    motion_sensors = []
     switches = []
     location_details = network_details["locationDetails"]["locationDetails"]
 
@@ -346,7 +373,14 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             processed_appliance["battery_level"] = has_capability(
                 appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
             )
+            processed_appliance["device_class"] = "door"
             contact_sensors.append(processed_appliance)
+        elif is_motion_sensor(appliance):
+            processed_appliance["battery_level"] = has_capability(
+                appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
+            )
+            processed_appliance["device_class"] = "motion"
+            motion_sensors.append(processed_appliance)
         else:
             _LOGGER.debug("Found unsupported device %s", appliance)
 
@@ -355,7 +389,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "guard": guards,
         "temperature": temperature_sensors,
         "air_quality": air_quality_sensors,
-        "binary_sensor": contact_sensors,
+        "binary_sensor": contact_sensors + motion_sensors,
         "smart_switch": switches,
     }
 
@@ -471,11 +505,11 @@ def parse_guard_state_from_coordinator(
 
 
 def parse_detection_state_from_coordinator(
-    coordinator: DataUpdateCoordinator, entity_id: str
+    coordinator: DataUpdateCoordinator, entity_id: str, namespace: str
 ) -> Optional[bool]:
     """Get the detection state from the coordinator data."""
     return parse_value_from_coordinator(
-        coordinator, entity_id, "Alexa.ContactSensor", "detectionState"
+        coordinator, entity_id, namespace, "detectionState"
     )
 
 

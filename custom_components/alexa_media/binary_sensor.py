@@ -49,13 +49,21 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
     if binary_entities and account_dict["options"].get(CONF_EXTENDED_ENTITY_DISCOVERY):
         for binary_entity in binary_entities:
             _LOGGER.debug(
-                "Creating entity %s for a binary_sensor with name %s",
+                "Creating entity %s for a binary_sensor with name %s and class %s",
                 hide_serial(binary_entity["id"]),
                 binary_entity["name"],
+                binary_entity["device_class"],
             )
-            contact_sensor = AlexaContact(coordinator, binary_entity)
-            account_dict["entities"]["binary_sensor"].append(contact_sensor)
-            devices.append(contact_sensor)
+            
+            if binary_entity["device_class"] == "door":
+                contact_sensor = AlexaContact(coordinator, binary_entity)
+                account_dict["entities"]["binary_sensor"].append(contact_sensor)
+                devices.append(contact_sensor)
+
+            if binary_entity["device_class"] == "motion":
+                motion_sensor = AlexaMotion(coordinator, binary_entity)
+                account_dict["entities"]["binary_sensor"].append(motion_sensor)
+                devices.append(motion_sensor)
 
     return await add_devices(
         hide_email(account),
@@ -114,7 +122,52 @@ class AlexaContact(CoordinatorEntity, BinarySensorEntity):
     def is_on(self):
         """Return whether on."""
         detection = parse_detection_state_from_coordinator(
-            self.coordinator, self.alexa_entity_id
+            self.coordinator, self.alexa_entity_id, "Alexa.ContactSensor"
+        )
+
+        return detection == "DETECTED" if detection is not None else None
+
+    @property
+    def assumed_state(self) -> bool:
+        """Return assumed state."""
+        last_refresh_success = (
+            self.coordinator.data and self.alexa_entity_id in self.coordinator.data
+        )
+        return not last_refresh_success
+
+
+class AlexaMotion(CoordinatorEntity, BinarySensorEntity):
+    """A motion sensor controlled by an Echo."""
+
+    _attr_device_class = BinarySensorDeviceClass.MOTION
+
+    def __init__(self, coordinator: CoordinatorEntity, details: dict):
+        """Initialize alexa motion sensor.
+
+        Args
+            coordinator (CoordinatorEntity): Coordinator
+            details (dict): Details dictionary
+
+        """
+        super().__init__(coordinator)
+        self.alexa_entity_id = details["id"]
+        self._name = details["name"]
+
+    @property
+    def name(self):
+        """Return name."""
+        return self._name
+
+    @property
+    def unique_id(self):
+        """Return unique id."""
+        return self.alexa_entity_id
+
+    @property
+    def is_on(self):
+        """Return whether on."""
+        detection = parse_detection_state_from_coordinator(
+            self.coordinator, self.alexa_entity_id, "Alexa.MotionSensor"
         )
 
         return detection == "DETECTED" if detection is not None else None
