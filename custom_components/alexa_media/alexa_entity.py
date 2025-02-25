@@ -262,7 +262,8 @@ class AlexaEntities(TypedDict):
     guard: list[AlexaEntity]
     temperature: list[AlexaEntity]
     air_quality: list[AlexaEntity]
-    binary_sensor: list[AlexaEntity]
+    contact_sensor: list[AlexaEntity]
+    motion_sensor: list[AlexaEntity]
     smart_switch: list[AlexaEntity]
 
 
@@ -365,12 +366,10 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             supported = True
         if is_contact_sensor(appliance):
             contact_sensor = processed_appliance
-            contact_sensor["device_class"] = "door"
             contact_sensors.append(contact_sensor)
             supported = True
         if is_motion_sensor(appliance):
             motion_sensor = processed_appliance
-            motion_sensor["device_class"] = "motion"
             motion_sensors.append(motion_sensor)
             supported = True
         
@@ -382,7 +381,8 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "guard": guards,
         "temperature": temperature_sensors,
         "air_quality": air_quality_sensors,
-        "binary_sensor": contact_sensors + motion_sensors,
+        "contact_sensor": contact_sensors,
+        "motion_sensor": motion_sensors,
         "smart_switch": switches,
     }
 
