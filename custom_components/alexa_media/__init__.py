@@ -665,7 +665,7 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             " Filtered out by not being in include: %s "
             "or in exclude: %s",
             hide_email(email),
-            list(existing_entities),
+            [existing_entity.name for existing_entity in list(existing_entities)],
             new_alexa_clients,
             include_filter,
             exclude_filter,
