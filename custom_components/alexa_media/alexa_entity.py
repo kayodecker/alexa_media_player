@@ -197,6 +197,14 @@ def is_switch(appliance: dict[str, Any]) -> bool:
     )
 
 
+def is_light_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance the light sensor of an Echo."""
+    return (
+        is_local(appliance)
+        and has_capability(appliance, "Alexa.LightSensor", "illuminance")
+    )
+
+
 def get_friendliest_name(appliance: dict[str, Any]) -> str:
     """Find the best friendly name. Alexa seems to store manual renames in aliases. Prefer that one."""
     aliases = appliance.get("aliases", [])
@@ -265,6 +273,7 @@ class AlexaEntities(TypedDict):
     contact_sensor: list[AlexaEntity]
     motion_sensor: list[AlexaEntity]
     smart_switch: list[AlexaEntity]
+    light_sensor: list[AlexaEntity]
 
 
 def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEntities:
@@ -277,6 +286,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     contact_sensors = []
     motion_sensors = []
     switches = []
+    light_sensors = []
     location_details = network_details["locationDetails"]["locationDetails"]
 
     appliances = {}
@@ -372,6 +382,10 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             motion_sensor = processed_appliance
             motion_sensors.append(motion_sensor)
             supported = True
+        if is_light_sensor(appliance):
+            light_sensor = processed_appliance
+            light_sensors.append(light_sensor)
+            supported = True
         
         if not supported:
             _LOGGER.debug("Found unsupported device %s", appliance)
@@ -384,6 +398,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "contact_sensor": contact_sensors,
         "motion_sensor": motion_sensors,
         "smart_switch": switches,
+        "light_sensor": light_sensors,
     }
 
 
@@ -422,11 +437,9 @@ def parse_temperature_from_coordinator(
     coordinator: DataUpdateCoordinator, entity_id: str
 ) -> Optional[str]:
     """Get the temperature of an entity from the coordinator data."""
-    temperature = parse_value_from_coordinator(
+    return parse_value_from_coordinator(
         coordinator, entity_id, "Alexa.TemperatureSensor", "temperature"
     )
-    _LOGGER.debug("parse_temperature_from_coordinator: %s", temperature)
-    return temperature
 
 
 def parse_air_quality_from_coordinator(
@@ -503,6 +516,15 @@ def parse_detection_state_from_coordinator(
     """Get the detection state from the coordinator data."""
     return parse_value_from_coordinator(
         coordinator, entity_id, namespace, "detectionState"
+    )
+
+
+def parse_illuminance_from_coordinator(
+    coordinator: DataUpdateCoordinator, entity_id: str
+) -> Optional[int]:
+    """Get the light level of an entity from the coordinator data."""
+    return parse_value_from_coordinator(
+        coordinator, entity_id, "Alexa.LightSensor", "illuminance"
     )
 
 
