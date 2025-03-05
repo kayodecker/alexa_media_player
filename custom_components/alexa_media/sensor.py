@@ -439,7 +439,7 @@ class LightSensor(SensorEntity, CoordinatorEntity):
         self._attr_native_value = self._get_illuminance_value(value)
         self._attr_native_unit_of_measurement = LIGHT_LUX
         _LOGGER.debug(
-            "Coordinator update: %s: %s",
+            "Coordinator update: %s: %s %s",
             self._attr_name,
             self._attr_native_value,
             self._attr_native_unit_of_measurement,
