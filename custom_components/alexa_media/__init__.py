@@ -467,6 +467,10 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             if temp and temp.enabled:
                 entities_to_monitor.add(temp.alexa_entity_id)
 
+            temp = sensor.get("Light_Sensor")
+            if temp and temp.enabled:
+                entities_to_monitor.add(temp.alexa_entity_id)
+
         for light in hass.data[DATA_ALEXAMEDIA]["accounts"][email]["entities"]["light"]:
             if light.enabled:
                 entities_to_monitor.add(light.alexa_entity_id)
@@ -482,6 +486,12 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
         ].values():
             if guard.enabled:
                 entities_to_monitor.add(guard.unique_id)
+
+        for switch in hass.data[DATA_ALEXAMEDIA]["accounts"][email]["entities"][
+            "smart_switch"
+        ]:
+            if switch.enabled:
+                entities_to_monitor.add(switch.alexa_entity_id)
 
         if entities_to_monitor:
             tasks.append(get_entity_data(login_obj, list(entities_to_monitor)))
@@ -659,7 +669,7 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             " Filtered out by not being in include: %s "
             "or in exclude: %s",
             hide_email(email),
-            list(existing_entities),
+            [existing_entity.name for existing_entity in list(existing_entities)],
             new_alexa_clients,
             include_filter,
             exclude_filter,

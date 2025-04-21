@@ -97,6 +97,21 @@ def is_local(appliance: dict[str, Any]) -> bool:
     manufacturerNames = ["Ledvance", "Sengled", "Amazon"]
     if appliance.get("manufacturerName") in manufacturerNames:
         return not is_skill(appliance)
+    
+    # Made for Amazon by Third Reality accessories
+    # Night Light for Echo Flex
+    if (
+        appliance.get("manufacturerName") == "Third Reality"
+        and appliance.get("friendlyDescription") == "Third Reality smart device"
+    ):
+        return True
+
+    # Amazon Smart Plug
+    if (
+        appliance.get("manufacturerName") == "Amazon"
+        and appliance.get("friendlyDescription") == "Amazon Smart Plug"
+    ):
+        return True
 
     # Zigbee devices are guaranteed to be local and have a particular pattern of id
     zigbee_pattern = re.compile(
@@ -151,8 +166,21 @@ def is_contact_sensor(appliance: dict[str, Any]) -> bool:
     """Is the given appliance a contact sensor controlled locally by an Echo."""
     return (
         is_local(appliance)
-        and "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
-        and has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+        and (
+            "CONTACT_SENSOR" in appliance.get("applianceTypes", [])
+            or has_capability(appliance, "Alexa.ContactSensor", "detectionState")
+        )
+    )
+
+
+def is_motion_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance a motion sensor controlled locally by an Echo."""
+    return (
+        is_local(appliance)
+        and (
+            "MOTION_SENSOR" in appliance.get("applianceTypes", [])
+            or has_capability(appliance, "Alexa.MotionSensor", "detectionState")
+        )
     )
 
 
@@ -166,6 +194,14 @@ def is_switch(appliance: dict[str, Any]) -> bool:
         )
         and appliance.get("customerDefinedDeviceType") != "LIGHT"
         and has_capability(appliance, "Alexa.PowerController", "powerState")
+    )
+
+
+def is_light_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance the light sensor of an Echo."""
+    return (
+        is_local(appliance)
+        and has_capability(appliance, "Alexa.LightSensor", "illuminance")
     )
 
 
@@ -216,6 +252,7 @@ class AlexaEntity(TypedDict):
     appliance_id: str
     name: str
     is_hue_v1: bool
+    device_serial: str
 
 
 class AlexaLightEntity(AlexaEntity):
@@ -226,32 +263,17 @@ class AlexaLightEntity(AlexaEntity):
     color_temperature: bool
 
 
-class AlexaTemperatureEntity(AlexaEntity):
-    """Class for AlexaTemperatureEntity."""
-
-    device_serial: str
-
-
-class AlexaAirQualityEntity(AlexaEntity):
-    """Class for AlexaAirQualityEntity."""
-
-    device_serial: str
-
-
-class AlexaBinaryEntity(AlexaEntity):
-    """Class for AlexaBinaryEntity."""
-
-    battery_level: bool
-
-
 class AlexaEntities(TypedDict):
     """Class for holding entities."""
 
     light: list[AlexaLightEntity]
     guard: list[AlexaEntity]
-    temperature: list[AlexaTemperatureEntity]
-    air_quality: list[AlexaAirQualityEntity]
-    binary_sensor: list[AlexaBinaryEntity]
+    temperature: list[AlexaEntity]
+    air_quality: list[AlexaEntity]
+    contact_sensor: list[AlexaEntity]
+    motion_sensor: list[AlexaEntity]
+    smart_switch: list[AlexaEntity]
+    light_sensor: list[AlexaEntity]
 
 
 def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEntities:
@@ -262,7 +284,9 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     temperature_sensors = []
     air_quality_sensors = []
     contact_sensors = []
+    motion_sensors = []
     switches = []
+    light_sensors = []
     location_details = (
         (network_details or {}).get("locationDetails", {}).get("locationDetails", {})
     )
@@ -281,26 +305,29 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             _LOGGER.debug("Found Home Assistant bridge, skipping %s", appliance)
             continue
 
+        serial = get_device_serial(appliance)
         processed_appliance = {
             "id": appliance["entityId"],
             "appliance_id": appliance["applianceId"],
             "name": get_friendliest_name(appliance),
             "is_hue_v1": is_hue_v1(appliance),
+            "device_serial": (
+                serial if serial else appliance["entityId"]
+            )
         }
+
+        supported = False
         if is_alexa_guard(appliance):
-            guards.append(processed_appliance)
-        elif is_temperature_sensor(appliance):
-            serial = get_device_serial(appliance)
-            processed_appliance["device_serial"] = (
-                serial if serial else appliance["entityId"]
-            )
-            temperature_sensors.append(processed_appliance)
+            guard = processed_appliance
+            guards.append(guard)
+            supported = True
+        if is_temperature_sensor(appliance):
+            temperature_sensor = processed_appliance
+            temperature_sensors.append(temperature_sensor)
+            supported = True
         # Code for Amazon Smart Air Quality Monitor
-        elif is_air_quality_sensor(appliance):
-            serial = get_device_serial(appliance)
-            processed_appliance["device_serial"] = (
-                serial if serial else appliance["entityId"]
-            )
+        if is_air_quality_sensor(appliance):
+            air_quality_sensor = processed_appliance
             # create array of air quality sensors. We must store the instance id against
             # the assetId so we know which sensors are which.
             sensors = []
@@ -324,32 +351,45 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
                         }
                         sensors.append(sensor)
                         _LOGGER.debug("AIAQM sensor detected %s", sensor)
-            processed_appliance["sensors"] = sensors
+            air_quality_sensor["sensors"] = sensors
 
             # Add as both temperature and air quality sensor
-            temperature_sensors.append(processed_appliance)
-            air_quality_sensors.append(processed_appliance)
-        elif is_switch(appliance):
-            switches.append(processed_appliance)
-        elif is_light(appliance):
-            processed_appliance["brightness"] = has_capability(
+            temperature_sensors.append(air_quality_sensor)
+            air_quality_sensors.append(air_quality_sensor)
+            supported = True
+        if is_switch(appliance):
+            switch = processed_appliance
+            switches.append(switch)
+            supported = True
+        if is_light(appliance):
+            light = processed_appliance
+            light["brightness"] = has_capability(
                 appliance, "Alexa.BrightnessController", "brightness"
             )
-            processed_appliance["color"] = has_capability(
+            light["color"] = has_capability(
                 appliance, "Alexa.ColorController", "color"
             )
-            processed_appliance["color_temperature"] = has_capability(
+            light["color_temperature"] = has_capability(
                 appliance,
                 "Alexa.ColorTemperatureController",
                 "colorTemperatureInKelvin",
             )
-            lights.append(processed_appliance)
-        elif is_contact_sensor(appliance):
-            processed_appliance["battery_level"] = has_capability(
-                appliance, "Alexa.BatteryLevelSensor", "batteryLevel"
-            )
-            contact_sensors.append(processed_appliance)
-        else:
+            lights.append(light)
+            supported = True
+        if is_contact_sensor(appliance):
+            contact_sensor = processed_appliance
+            contact_sensors.append(contact_sensor)
+            supported = True
+        if is_motion_sensor(appliance):
+            motion_sensor = processed_appliance
+            motion_sensors.append(motion_sensor)
+            supported = True
+        if is_light_sensor(appliance):
+            light_sensor = processed_appliance
+            light_sensors.append(light_sensor)
+            supported = True
+        
+        if not supported:
             _LOGGER.debug("Found unsupported device %s", appliance)
 
     return {
@@ -357,8 +397,10 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "guard": guards,
         "temperature": temperature_sensors,
         "air_quality": air_quality_sensors,
-        "binary_sensor": contact_sensors,
+        "contact_sensor": contact_sensors,
+        "motion_sensor": motion_sensors,
         "smart_switch": switches,
+        "light_sensor": light_sensors,
     }
 
 
@@ -397,11 +439,9 @@ def parse_temperature_from_coordinator(
     coordinator: DataUpdateCoordinator, entity_id: str
 ) -> Optional[str]:
     """Get the temperature of an entity from the coordinator data."""
-    temperature = parse_value_from_coordinator(
+    return parse_value_from_coordinator(
         coordinator, entity_id, "Alexa.TemperatureSensor", "temperature"
     )
-    _LOGGER.debug("parse_temperature_from_coordinator: %s", temperature)
-    return temperature
 
 
 def parse_air_quality_from_coordinator(
@@ -473,11 +513,20 @@ def parse_guard_state_from_coordinator(
 
 
 def parse_detection_state_from_coordinator(
-    coordinator: DataUpdateCoordinator, entity_id: str
+    coordinator: DataUpdateCoordinator, entity_id: str, namespace: str
 ) -> Optional[bool]:
     """Get the detection state from the coordinator data."""
     return parse_value_from_coordinator(
-        coordinator, entity_id, "Alexa.ContactSensor", "detectionState"
+        coordinator, entity_id, namespace, "detectionState"
+    )
+
+
+def parse_illuminance_from_coordinator(
+    coordinator: DataUpdateCoordinator, entity_id: str
+) -> Optional[int]:
+    """Get the light level of an entity from the coordinator data."""
+    return parse_value_from_coordinator(
+        coordinator, entity_id, "Alexa.LightSensor", "illuminance"
     )
 
 
