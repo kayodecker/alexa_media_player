@@ -30,6 +30,20 @@ from . import (
 from .alexa_entity import parse_detection_state_from_coordinator
 from .const import CONF_EXTENDED_ENTITY_DISCOVERY
 from .helpers import add_devices
+from .acoustic_event_sensors import (
+    BabyCrySensor,
+    BeepingApplianceSensor,
+    CarbonMonoxideSirenSensor,
+    CoughSensor,
+    DogBarkSensor,
+    GlassBreakSensor,
+    HumanPresenceSensor,
+    RunningWaterSensor,
+    SmokeAlarmSensor,
+    SmokeSirenSensor,
+    SnoreSensor,
+    WaterSoundsSensor,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,10 +75,20 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
         contact_sensors = await create_contact_sensors(
             account_dict, contact_entities
         )
+
+    acoustic_event_sensors = []
+    acoustic_event_entities = account_dict.get("devices", {}).get("acoustic_event_sensor", [])
+    if acoustic_event_entities and account_dict["options"].get(CONF_EXTENDED_ENTITY_DISCOVERY):
+        _LOGGER.debug(
+            "%s: Found %d acoustic sensors", hide_email(account), len(acoustic_event_entities)
+        )
+        acoustic_event_sensors = await create_acoustic_event_sensors(
+            account_dict, acoustic_event_entities
+        )
             
     return await add_devices(
         hide_email(account),
-        motion_sensors + contact_sensors,
+        motion_sensors + contact_sensors + acoustic_event_sensors,
         add_devices_callback,
         include_filter,
         exclude_filter,
@@ -121,6 +145,51 @@ async def create_motion_sensors(account_dict, motion_entities):
         motion_sensor = AlexaMotion(coordinator, motion_entity["id"], motion_entity["name"], device_info)
         account_dict["entities"]["binary_sensor"].append(motion_sensor)
         devices.append(motion_sensor)
+    return devices
+
+
+def detection_modes():
+    """Return a dictionary of detection modes and their corresponding sensor classes."""
+    return {
+        "babyCry": BabyCrySensor,
+        "beepingAppliance": BeepingApplianceSensor,
+        "carbonMonoxideSiren": CarbonMonoxideSirenSensor,
+        "cough": CoughSensor,
+        "dogBark": DogBarkSensor,
+        "glassBreak": GlassBreakSensor,
+        "humanPresence": HumanPresenceSensor,
+        "runningWater": RunningWaterSensor,
+        "smokeAlarm": SmokeAlarmSensor,
+        "smokeSiren": SmokeSirenSensor,
+        "snore": SnoreSensor,
+        "waterSounds": WaterSoundsSensor,
+    }
+
+
+async def create_acoustic_event_sensors(account_dict, acoustic_event_entities):
+    """Create acoustic event sensors."""
+    devices: list[BinarySensorEntity] = []
+    coordinator = account_dict["coordinator"]
+    detection_mode_dict = detection_modes()
+    for acoustic_event_entity in acoustic_event_entities:
+        _LOGGER.debug(
+            "Creating entity %s for an acoustic event sensor with name %s (%s)",
+            hide_serial(acoustic_event_entity["id"]),
+            acoustic_event_entity["name"],
+            acoustic_event_entity,
+        )
+        serial = acoustic_event_entity["device_serial"]
+        device_info = lookup_device_info(account_dict, serial)
+        for detection_mode, sensor_class in detection_mode_dict.items():
+            _LOGGER.debug(
+                "Creating %s sensor for detection mode %s on device %s",
+                sensor_class.__name__,
+                detection_mode,
+                hide_serial(acoustic_event_entity["id"]),
+            )
+            sensor = sensor_class(coordinator, acoustic_event_entity["id"], acoustic_event_entity["name"], device_info)
+            account_dict["entities"]["binary_sensor"].append(sensor)
+            devices.append(sensor)
     return devices
 
 

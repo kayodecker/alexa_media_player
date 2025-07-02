@@ -205,6 +205,27 @@ def is_light_sensor(appliance: dict[str, Any]) -> bool:
     )
 
 
+def is_acoustic_event_sensor(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance an acoustic event sensor controlled locally by an Echo."""
+    return (
+        is_local(appliance)
+        and has_capability(appliance, "Alexa.AcousticEventSensor", "detectionModes")
+        and (
+            has_capability(appliance, "Alexa.AcousticEventSensor", "babyCryDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "beepingApplianceDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "carbonMonoxideSirenDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "coughDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "dogBarkDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "glassBreakDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "humanPresenceDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "runningWaterDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "smokeAlarmDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "smokeSirenDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "snoreDetectionState")
+            or has_capability(appliance, "Alexa.AcousticEventSensor", "waterSoundsDetectionState")
+        )
+    )
+
 def get_friendliest_name(appliance: dict[str, Any]) -> str:
     """Find the best friendly name. Alexa seems to store manual renames in aliases. Prefer that one."""
     aliases = appliance.get("aliases", [])
@@ -274,6 +295,7 @@ class AlexaEntities(TypedDict):
     motion_sensor: list[AlexaEntity]
     smart_switch: list[AlexaEntity]
     light_sensor: list[AlexaEntity]
+    acoustic_event_sensor: list[AlexaEntity]
 
 
 def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEntities:
@@ -287,6 +309,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     motion_sensors = []
     switches = []
     light_sensors = []
+    acoustic_event_sensors = []
     location_details = (
         (network_details or {}).get("locationDetails", {}).get("locationDetails", {})
     )
@@ -388,6 +411,10 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             light_sensor = processed_appliance
             light_sensors.append(light_sensor)
             supported = True
+        if is_acoustic_event_sensor(appliance):
+            acoustic_event_sensor = processed_appliance
+            acoustic_event_sensors.append(acoustic_event_sensor)
+            supported = True
         
         if not supported:
             _LOGGER.debug("Found unsupported device %s", appliance)
@@ -401,6 +428,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "motion_sensor": motion_sensors,
         "smart_switch": switches,
         "light_sensor": light_sensors,
+        "acoustic_event_sensor": acoustic_event_sensors,
     }
 
 
@@ -528,6 +556,20 @@ def parse_illuminance_from_coordinator(
     return parse_value_from_coordinator(
         coordinator, entity_id, "Alexa.LightSensor", "illuminance"
     )
+
+
+def parse_acoustic_event_from_coordinator(
+    coordinator: DataUpdateCoordinator, entity_id: str, detection_mode: str
+) -> Optional[bool]:
+    """Get the acoustic event detection state from the coordinator data."""
+    value = parse_value_from_coordinator(
+        coordinator, entity_id, "Alexa.AcousticEventSensor", detection_mode
+    )
+    if value is not None:
+        # If value is a dict with a 'value' key, return that, else return value itself
+        if isinstance(value, dict) and "value" in value:
+            return value["value"]
+        return value
 
 
 def parse_value_from_coordinator(
