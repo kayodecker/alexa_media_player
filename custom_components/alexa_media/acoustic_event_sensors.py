@@ -1,3 +1,9 @@
+"""
+Alexa Media Player Acoustic Event Sensors
+These sensors are used to detect various acoustic events such as baby cries, dog barks, and more.
+Each sensor is represented by a class that inherits from CoordinatorEntity and BinarySensorEntity.
+"""
+
 import logging
 from typing import Optional
 
@@ -12,7 +18,8 @@ from .alexa_entity import parse_acoustic_event_from_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-
+# Base class for Alexa acoustic event sensors
+# This class provides common functionality for all acoustic event sensors.
 class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
     """Base class for Alexa acoustic event sensors."""
 
@@ -56,6 +63,7 @@ class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
         return self._attr_is_on
 
 
+# Sensor classes for specific acoustic events
 class BabyCrySensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 

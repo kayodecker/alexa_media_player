@@ -263,7 +263,10 @@ def get_device_bridge(
         return None
 
     # We expect the bridge to share the prefix without the device num
-    return appliances[match.group(1)]
+    bridge_id = match.group(1)
+    if bridge_id in appliances:
+        return appliances[bridge_id]
+    return None
 
 
 class AlexaEntity(TypedDict):
@@ -437,7 +440,7 @@ class AlexaCapabilityState(TypedDict):
 
     name: str
     namespace: str
-    value: Union[int, str, TypedDict]
+    value: Union[int, str, TypedDict] # type: ignore
 
 
 AlexaEntityData = dict[str, list[AlexaCapabilityState]]
@@ -518,7 +521,8 @@ def parse_color_from_coordinator(
     if value is not None:
         hue = value.get("hue", 0)
         saturation = value.get("saturation", 0)
-        return hue, saturation, 1
+        brightness = value.get("brightness", 1)
+        return hue, saturation, brightness
     return None
 
 
@@ -542,7 +546,7 @@ def parse_guard_state_from_coordinator(
 
 def parse_detection_state_from_coordinator(
     coordinator: DataUpdateCoordinator, entity_id: str, namespace: str
-) -> Optional[bool]:
+) -> Optional[str]:
     """Get the detection state from the coordinator data."""
     return parse_value_from_coordinator(
         coordinator, entity_id, namespace, "detectionState"
@@ -551,7 +555,7 @@ def parse_detection_state_from_coordinator(
 
 def parse_illuminance_from_coordinator(
     coordinator: DataUpdateCoordinator, entity_id: str
-) -> Optional[int]:
+) -> Optional[float]:
     """Get the light level of an entity from the coordinator data."""
     return parse_value_from_coordinator(
         coordinator, entity_id, "Alexa.LightSensor", "illuminance"
@@ -560,7 +564,7 @@ def parse_illuminance_from_coordinator(
 
 def parse_acoustic_event_from_coordinator(
     coordinator: DataUpdateCoordinator, entity_id: str, detection_mode: str
-) -> Optional[bool]:
+) -> Optional[str]:
     """Get the acoustic event detection state from the coordinator data."""
     value = parse_value_from_coordinator(
         coordinator, entity_id, "Alexa.AcousticEventSensor", detection_mode
@@ -578,25 +582,26 @@ def parse_value_from_coordinator(
     namespace: str,
     name: str,
     since: Optional[datetime] = None,
-    instance: str = None,
+    instance: Optional[str] = None,
 ) -> Any:
     """Parse out values from coordinator for Alexa Entities."""
-    if coordinator.data and entity_id in coordinator.data:
-        for cap_state in coordinator.data[entity_id]:
-            if (
-                cap_state.get("namespace") == namespace
-                and cap_state.get("name") == name
-                and (cap_state.get("instance") == instance or instance is None)
-            ):
-                if is_cap_state_still_acceptable(cap_state, since):
-                    return cap_state.get("value")
-                _LOGGER.debug(
-                    "Coordinator data for %s is too old to be returned.",
-                    hide_serial(entity_id),
-                )
-                return None
-    else:
+    if not (coordinator.data and entity_id in coordinator.data):
         _LOGGER.debug("Coordinator has no data for %s", hide_serial(entity_id))
+        return None
+
+    for cap_state in coordinator.data[entity_id]:
+        if (
+            cap_state.get("namespace") == namespace
+            and cap_state.get("name") == name
+            and (cap_state.get("instance") == instance or instance is None)
+        ):
+            if is_cap_state_still_acceptable(cap_state, since):
+                return cap_state.get("value")
+            _LOGGER.debug(
+                "Coordinator data for %s is too old to be returned.",
+                hide_serial(entity_id),
+            )
+            return None
     return None
 
 

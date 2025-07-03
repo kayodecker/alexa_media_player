@@ -7,17 +7,12 @@ For more details about this platform, please refer to the documentation at
 https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers-needed/58639
 """
 
-import datetime
 import logging
-from typing import Optional
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import (
     CONF_EMAIL,
@@ -27,9 +22,10 @@ from . import (
     hide_email,
     hide_serial,
 )
-from .alexa_entity import parse_detection_state_from_coordinator
 from .const import CONF_EXTENDED_ENTITY_DISCOVERY
 from .helpers import add_devices
+from .contact_sensor import ContactSensor
+from .motion_sensor import MotionSensor
 from .acoustic_event_sensors import (
     BabyCrySensor,
     BeepingApplianceSensor,
@@ -123,7 +119,7 @@ async def create_contact_sensors(account_dict, contact_entities):
             contact_entity["name"],
             contact_entity,
         )
-        contact_sensor = AlexaContact(coordinator, contact_entity)
+        contact_sensor = ContactSensor(coordinator, contact_entity)
         account_dict["entities"]["binary_sensor"].append(contact_sensor)
         devices.append(contact_sensor)
     return devices
@@ -142,7 +138,7 @@ async def create_motion_sensors(account_dict, motion_entities):
         )
         serial = motion_entity["device_serial"]
         device_info = lookup_device_info(account_dict, serial)
-        motion_sensor = AlexaMotion(coordinator, motion_entity["id"], motion_entity["name"], device_info)
+        motion_sensor = MotionSensor(coordinator, motion_entity["id"], motion_entity["name"], device_info)
         account_dict["entities"]["binary_sensor"].append(motion_sensor)
         devices.append(motion_sensor)
     return devices
@@ -194,10 +190,7 @@ async def create_acoustic_event_sensors(account_dict, acoustic_event_entities):
 
 
 def lookup_device_info(account_dict, device_serial):
-    """Get the device to use for a given Echo based on a given device serial id.
-
-    This may return nothing as there is no guarantee that a given temperature sensor is actually attached to an Echo.
-    """
+    """Look up device info for a given device serial."""
     for key, mediaplayer in account_dict["entities"]["media_player"].items():
         if (
             key == device_serial
@@ -207,104 +200,3 @@ def lookup_device_info(account_dict, device_serial):
             for ident in mediaplayer.device_info["identifiers"]:
                 return ident
     return None
-
-
-class AlexaContact(CoordinatorEntity, BinarySensorEntity):
-    """A contact sensor controlled by an Echo."""
-
-    _attr_device_class = BinarySensorDeviceClass.DOOR
-
-    def __init__(self, coordinator: CoordinatorEntity, details: dict):
-        """Initialize alexa contact sensor.
-
-        Args
-            coordinator (CoordinatorEntity): Coordinator
-            details (dict): Details dictionary
-
-        """
-        super().__init__(coordinator)
-        self.alexa_entity_id = details["id"]
-        self._name = details["name"]
-
-    @property
-    def name(self):
-        """Return name."""
-        return self._name
-
-    @property
-    def unique_id(self):
-        """Return unique id."""
-        return self.alexa_entity_id
-
-    @property
-    def is_on(self):
-        """Return whether on."""
-        detection = parse_detection_state_from_coordinator(
-            self.coordinator, self.alexa_entity_id, "Alexa.ContactSensor"
-        )
-
-        return detection == "DETECTED" if detection is not None else None
-
-    @property
-    def assumed_state(self) -> bool:
-        """Return assumed state."""
-        last_refresh_success = (
-            self.coordinator.data and self.alexa_entity_id in self.coordinator.data
-        )
-        return not last_refresh_success
-
-
-class AlexaMotion(CoordinatorEntity, BinarySensorEntity):
-    """A motion sensor controlled by an Echo."""
-
-    def __init__(self, coordinator, entity_id, name, media_player_device_id):
-        """Initialize alexa motion sensor."""
-        super().__init__(coordinator)
-        self.alexa_entity_id = entity_id
-        self._attr_unique_id = entity_id + "_motion"
-        self._attr_name = name + " Motion"
-        self._attr_device_class = BinarySensorDeviceClass.MOTION
-        detection_state: Optional[datetime.datetime] = (
-            parse_detection_state_from_coordinator(coordinator, entity_id, "Alexa.MotionSensor")
-        )
-        self._attr_is_on = self._get_detection_state(detection_state)
-        _LOGGER.debug(
-            "Coordinator init: %s: %s",
-            self._attr_name,
-            self._attr_is_on,
-        )
-        self._attr_device_info = (
-            {
-                "identifiers": {media_player_device_id},
-                "via_device": media_player_device_id,
-            }
-            if media_player_device_id
-            else None
-        )
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        detection_state = parse_detection_state_from_coordinator(
-            self.coordinator, self.alexa_entity_id, "Alexa.MotionSensor"
-        )
-        self._attr_is_on = self._get_detection_state(detection_state)
-        _LOGGER.debug(
-            "Coordinator update: %s: %s",
-            self._attr_name,
-            self._attr_is_on,
-        )
-        super()._handle_coordinator_update()
-
-    def _get_detection_state(self, detection_state):
-        _LOGGER.debug("MotionSensor value: %s", detection_state)
-        return detection_state == "DETECTED" if detection_state is not None else None
-
-    @property
-    def is_on(self):
-        """Return whether on."""
-        detection = parse_detection_state_from_coordinator(
-            self.coordinator, self.alexa_entity_id, "Alexa.MotionSensor"
-        )
-
-        return detection == "DETECTED" if detection is not None else None
