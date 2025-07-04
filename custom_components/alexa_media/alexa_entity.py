@@ -586,7 +586,7 @@ def parse_value_from_coordinator(
 ) -> Any:
     """Parse out values from coordinator for Alexa Entities."""
     if not (coordinator.data and entity_id in coordinator.data):
-        _LOGGER.debug("Coordinator has no data for %s", hide_serial(entity_id))
+        _LOGGER.debug("Coordinator has no %s data for %s", name, hide_serial(entity_id))
         return None
 
     for cap_state in coordinator.data[entity_id]:

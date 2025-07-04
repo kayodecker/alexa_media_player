@@ -38,15 +38,9 @@ class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
             self.coordinator, self.alexa_entity_id, self.detection_state_key
         )
         if detection_state is None:
-            _LOGGER.debug("No detection state found for %s", self._attr_name)
             return
-        _LOGGER.debug("%s value: %s", self.detection_state_key, detection_state)
+        _LOGGER.debug("%s value: %s", self.__name__, detection_state)
         if detection_state not in ["DETECTED", "NOT_DETECTED"]:
-            _LOGGER.warning(
-                "Unexpected detection state for %s: %s. Defaulting to off.",
-                self._attr_name,
-                detection_state,
-            )
             self._attr_is_on = False
         else:
             self._attr_is_on = self._get_detection_state(detection_state)
