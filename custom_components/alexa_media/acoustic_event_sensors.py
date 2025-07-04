@@ -39,7 +39,7 @@ class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
         )
         if detection_state is None:
             return
-        _LOGGER.debug("%s value: %s", self.__name__, detection_state)
+        _LOGGER.debug("%s value: %s", self.detection_state_key, detection_state)
         if detection_state not in ["DETECTED", "NOT_DETECTED"]:
             self._attr_is_on = False
         else:

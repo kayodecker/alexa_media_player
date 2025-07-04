@@ -178,8 +178,7 @@ async def create_acoustic_event_sensors(account_dict, acoustic_event_entities):
         device_info = lookup_device_info(account_dict, serial)
         for detection_mode, sensor_class in detection_mode_dict.items():
             _LOGGER.debug(
-                "Creating %s for detection mode %s on device %s",
-                sensor_class.__name__,
+                "Creating %s sensor on device %s",
                 detection_mode,
                 hide_serial(acoustic_event_entity["id"]),
             )
