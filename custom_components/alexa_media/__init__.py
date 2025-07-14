@@ -14,7 +14,7 @@ import logging
 import os
 import time
 from typing import Optional, Any
-from aiofile import async_open
+import aiofiles
 
 from alexapy import (
     AlexaAPI,
@@ -1597,7 +1597,7 @@ async def get_network_details(hass) -> Optional[dict[str, Any]]:
     Returns json
     """
     filepath = hass.config.path("network_details.json")
-    async with async_open(filepath, "r") as file:
+    async with aiofiles.open(filepath, "r") as file:
         network_details = loads(await file.read())
 
     return network_details["networkDetail"]
