@@ -9,11 +9,11 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 
 import asyncio
 from datetime import datetime, timedelta
-from json import JSONDecodeError, loads
+from json import JSONDecodeError, loads, load
 import logging
 import os
 import time
-from typing import Optional
+from typing import Optional, Any
 
 from alexapy import (
     AlexaAPI,
@@ -497,7 +497,7 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             tasks.append(get_entity_data(login_obj, list(entities_to_monitor)))
 
         if should_get_network:
-            tasks.append(AlexaAPI.get_network_details(login_obj))
+             tasks.append(get_network_details(hass))
 
         try:
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
@@ -1586,3 +1586,17 @@ async def test_login_status(hass, config_entry, login) -> bool:
         },
     )
     return False
+
+async def get_network_details(hass) -> Optional[dict[str, Any]]:
+    """Get the network of devices that Alexa is aware of.
+
+    Args:
+    login: (AlexaLogin): Successfully logged in AlexaLogin
+
+    Returns json
+    """
+    filepath = hass.config.path("network_details.json")
+    with open(filepath, "r") as file:
+        network_details = load(file)
+
+    return network_details["networkDetail"]
