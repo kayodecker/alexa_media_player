@@ -612,11 +612,12 @@ def is_cap_state_still_acceptable(
     if since is not None:
         formatted_time_of_sample = cap_state.get("timeOfSample")
         if formatted_time_of_sample:
-            try:
-                time_of_sample = datetime.strptime(
-                    formatted_time_of_sample, "%Y-%m-%dT%H:%M:%S.%f%z"
-                )
-                return time_of_sample >= since
-            except ValueError:
-                pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%Sz"):
+                try:
+                    time_of_sample = datetime.strptime(
+                        formatted_time_of_sample, fmt
+                    )
+                    return time_of_sample >= since
+                except ValueError:
+                    pass
     return True
