@@ -9,11 +9,12 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 
 import asyncio
 from datetime import datetime, timedelta
-from json import JSONDecodeError, loads, load
+from json import JSONDecodeError, loads
 import logging
 import os
 import time
 from typing import Optional, Any
+from aiofile import async_open
 
 from alexapy import (
     AlexaAPI,
@@ -1596,7 +1597,7 @@ async def get_network_details(hass) -> Optional[dict[str, Any]]:
     Returns json
     """
     filepath = hass.config.path("network_details.json")
-    with open(filepath, "r") as file:
-        network_details = load(file)
+    async with async_open(filepath, "r") as file:
+        network_details = loads(await file.read())
 
     return network_details["networkDetail"]
