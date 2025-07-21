@@ -498,7 +498,7 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
             tasks.append(get_entity_data(login_obj, list(entities_to_monitor)))
 
         if should_get_network:
-             tasks.append(get_network_details(hass))
+            tasks.append(AlexaAPI.get_network_details(login_obj))
 
         try:
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
@@ -1593,17 +1593,3 @@ async def test_login_status(hass, config_entry, login) -> bool:
         },
     )
     return False
-
-async def get_network_details(hass) -> Optional[dict[str, Any]]:
-    """Get the network of devices that Alexa is aware of.
-
-    Args:
-    login: (AlexaLogin): Successfully logged in AlexaLogin
-
-    Returns json
-    """
-    filepath = hass.config.path("network_details.json")
-    async with aiofiles.open(filepath, "r") as file:
-        network_details = loads(await file.read())
-
-    return network_details["networkDetail"]
