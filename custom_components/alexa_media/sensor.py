@@ -17,7 +17,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature, __version__ as HA_VERSION
+from homeassistant.const import UnitOfTemperature, __version__ as HA_VERSION, LIGHT_LUX
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady, NoEntitySpecifiedError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -38,6 +38,7 @@ from . import (
 from .alexa_entity import (
     parse_air_quality_from_coordinator,
     parse_temperature_from_coordinator,
+    parse_illuminance_from_coordinator,
 )
 from .const import (
     ALEXA_ICON_CONVERSION,
@@ -148,9 +149,18 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
             account_dict, air_quality_entities
         )
 
+    light_sensors = []
+    illuminance_entities = account_dict.get("devices", {}).get("light_sensor", [])
+    if illuminance_entities and account_dict["options"].get(
+        CONF_EXTENDED_ENTITY_DISCOVERY
+    ):
+        light_sensors = await create_light_sensors(
+            account_dict, illuminance_entities
+        )
+
     return await add_devices(
         hide_email(account),
-        devices + temperature_sensors + air_quality_sensors,
+        devices + temperature_sensors + air_quality_sensors + light_sensors,
         add_devices_callback,
         include_filter,
         exclude_filter,
@@ -222,13 +232,33 @@ async def create_air_quality_sensors(account_dict, air_quality_entities):
                 instance,
                 unit,
             )
-            _LOGGER.debug("Create air quality sensors %s", sensor)
+            _LOGGER.debug("Create air quality sensors %s", subsensor)
             account_dict["entities"]["sensor"].setdefault(serial, {})
             account_dict["entities"]["sensor"][serial].setdefault(sensor_type, {})
             account_dict["entities"]["sensor"][serial][sensor_type][
                 "Air_Quality"
             ] = sensor
             devices.append(sensor)
+    return devices
+
+
+async def create_light_sensors(account_dict, illuminance_entities):
+    """Create light sensors."""
+    devices = []
+    coordinator = account_dict["coordinator"]
+    for temp in illuminance_entities:
+        _LOGGER.debug(
+            "Creating entity %s for a light sensor with name %s (%s)",
+            temp["id"],
+            temp["name"],
+            temp,
+        )
+        serial = temp["device_serial"]
+        device_info = lookup_device_info(account_dict, serial)
+        sensor = LightSensor(coordinator, temp["id"], temp["name"], device_info)
+        account_dict["entities"]["sensor"].setdefault(serial, {})
+        account_dict["entities"]["sensor"][serial]["Light_Sensor"] = sensor
+        devices.append(sensor)
     return devices
 
 
@@ -369,6 +399,59 @@ class AirQualitySensor(SensorEntity, CoordinatorEntity):
         )
         super()._handle_coordinator_update()
 
+
+class LightSensor(SensorEntity, CoordinatorEntity):
+    """A light sensor reported by an Echo."""
+
+    def __init__(self, coordinator, entity_id, name, media_player_device_id):
+        """Initialize light sensor."""
+        super().__init__(coordinator)
+        self.alexa_entity_id = entity_id
+        self._attr_unique_id = entity_id + "_light_level"
+        self._attr_name = name + " Light Level"
+        self._attr_device_class = SensorDeviceClass.ILLUMINANCE
+        value: Optional[datetime.datetime] = (
+            parse_illuminance_from_coordinator(coordinator, entity_id)
+        )
+        self._attr_native_value = self._get_illuminance_value(value)
+        self._attr_native_unit_of_measurement = LIGHT_LUX
+        _LOGGER.debug(
+            "Coordinator init: %s: %s %s",
+            self._attr_name,
+            self._attr_native_value,
+            self._attr_native_unit_of_measurement,
+        )
+        self._attr_device_info = (
+            {
+                "identifiers": {media_player_device_id},
+                "via_device": media_player_device_id,
+            }
+            if media_player_device_id
+            else None
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        value = parse_illuminance_from_coordinator(
+            self.coordinator, self.alexa_entity_id
+        )
+        self._attr_native_value = self._get_illuminance_value(value)
+        self._attr_native_unit_of_measurement = LIGHT_LUX
+        _LOGGER.debug(
+            "Coordinator update: %s: %s %s",
+            self._attr_name,
+            self._attr_native_value,
+            self._attr_native_unit_of_measurement,
+        )
+        super()._handle_coordinator_update()
+
+    def _get_illuminance_value(self, value):
+        _LOGGER.debug("LightSensor value: %s", value)
+        if value is None:
+            return None
+        return value
+    
 
 class AlexaMediaNotificationSensor(SensorEntity):
     """Representation of Alexa Media sensors."""
