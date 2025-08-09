@@ -320,6 +320,7 @@ async def async_setup_entry(hass, config_entry):
                 "binary_sensor": [],
                 "alarm_control_panel": {},
                 "smart_switch": [],
+                "toggle_switch": [],
             },
             "excluded": {},
             "new_devices": True,
@@ -489,6 +490,12 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
 
         for switch in hass.data[DATA_ALEXAMEDIA]["accounts"][email]["entities"][
             "smart_switch"
+        ]:
+            if switch.enabled:
+                entities_to_monitor.add(switch.alexa_entity_id)
+
+        for switch in hass.data[DATA_ALEXAMEDIA]["accounts"][email]["entities"][
+            "toggle_switch"
         ]:
             if switch.enabled:
                 entities_to_monitor.add(switch.alexa_entity_id)

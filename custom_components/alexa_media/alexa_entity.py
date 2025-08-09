@@ -227,6 +227,14 @@ def is_acoustic_event_sensor(appliance: dict[str, Any]) -> bool:
     )
 
 
+def is_toggle_switch(appliance: dict[str, Any]) -> bool:
+    """Is the given appliance a toggle switch controlled locally by an Echo."""
+    return (
+        is_local(appliance)
+        and has_capability(appliance, "Alexa.ToggleController", "toggleState")
+    )
+
+
 def get_friendliest_name(appliance: dict[str, Any]) -> str:
     """Find the best friendly name. Alexa seems to store manual renames in aliases. Prefer that one."""
     aliases = appliance.get("aliases", [])
@@ -300,6 +308,7 @@ class AlexaEntities(TypedDict):
     smart_switch: list[AlexaEntity]
     light_sensor: list[AlexaEntity]
     acoustic_event_sensor: list[AlexaEntity]
+    toggle_switch: list[AlexaEntity]
 
 
 def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEntities:
@@ -314,6 +323,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
     switches = []
     light_sensors = []
     acoustic_event_sensors = []
+    toggle_switches = []
 
     if not network_details:
         return {
@@ -321,8 +331,12 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             "guard": guards,
             "temperature": temperature_sensors,
             "air_quality": air_quality_sensors,
-            "binary_sensor": contact_sensors,
+            "contact_sensor": contact_sensors,
+            "motion_sensor": motion_sensors,
             "smart_switch": switches,
+            "light_sensor": light_sensors,
+            "acoustic_event_sensor": acoustic_event_sensors,
+            "toggle_switch": toggle_switches,
         }
     network_dict = {}
     for appliance in network_details:
@@ -338,11 +352,12 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         processed_appliance = {
             "id": appliance["entityId"],
             "appliance_id": appliance["applianceId"],
+            "appliance_types": appliance["applianceTypes"],
             "name": get_friendliest_name(appliance),
             "is_hue_v1": is_hue_v1(appliance),
             "device_serial": (
                 serial if serial else appliance["entityId"]
-            )
+            ),
         }
 
         supported = False
@@ -421,6 +436,32 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
             acoustic_event_sensor = processed_appliance
             acoustic_event_sensors.append(acoustic_event_sensor)
             supported = True
+        if is_toggle_switch(appliance):
+            toggle_switch = processed_appliance
+            toggleControllers = []
+            for cap in appliance["capabilities"]:
+                instance = cap.get("instance")
+                if not instance:
+                    continue
+                interfaceName = cap["interfaceName"]
+                if interfaceName != "Alexa.ToggleController":
+                    continue
+                friendlyName = cap["resources"].get("friendlyNames")
+                for entry in friendlyName:
+                    text = entry["value"].get("text")
+                    locale = entry["value"].get("locale")
+                    if not text or not locale or not locale == "en-US":
+                        continue
+
+                    toggleController = {
+                        "text": text,
+                        "instance": instance,
+                    }
+                    toggleControllers.append(toggleController)
+                    _LOGGER.debug("Toggle detected %s", toggleController)
+            toggle_switch["controllers"] = toggleControllers
+            toggle_switches.append(toggle_switch)
+            supported = True
 
         if not supported:
             _LOGGER.debug("Found unsupported device %s", appliance)
@@ -435,6 +476,7 @@ def parse_alexa_entities(network_details: Optional[dict[str, Any]]) -> AlexaEnti
         "smart_switch": switches,
         "light_sensor": light_sensors,
         "acoustic_event_sensor": acoustic_event_sensors,
+        "toggle_switch": toggle_switches,
     }
 
 
@@ -577,6 +619,15 @@ def parse_acoustic_event_from_coordinator(
         if isinstance(value, dict) and "value" in value:
             return value["value"]
         return value
+
+
+def parse_toggle_from_coordinator(
+    coordinator: DataUpdateCoordinator, entity_id: str, since: datetime
+) -> Optional[str]:
+    """Get the toggle state of the entity."""
+    return parse_value_from_coordinator(
+        coordinator, entity_id, "Alexa.ToggleController", "toggleState", since
+    )
 
 
 def parse_value_from_coordinator(

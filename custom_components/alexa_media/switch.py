@@ -10,6 +10,7 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 import datetime
 import logging
 from typing import List
+import json
 
 from alexapy import AlexaAPI
 from homeassistant.exceptions import ConfigEntryNotReady, NoEntitySpecifiedError
@@ -26,7 +27,7 @@ from . import (
     hide_email,
     hide_serial,
 )
-from .alexa_entity import parse_power_from_coordinator
+from .alexa_entity import parse_power_from_coordinator, parse_toggle_from_coordinator
 from .alexa_media import AlexaMedia
 from .const import CONF_EXTENDED_ENTITY_DISCOVERY
 from .helpers import _catch_login_errors, add_devices
@@ -141,6 +142,27 @@ async def async_setup_platform(hass, config, add_devices_callback, discovery_inf
                     "Switch '%s' has not been added because it may originate from emulated_hue",
                     switch_entity["name"],
                 )
+    # Add toggle switches
+    toggle_switch_entities = account_dict.get("devices", {}).get("toggle_switch", [])
+    if toggle_switch_entities and account_dict["options"].get(CONF_EXTENDED_ENTITY_DISCOVERY):
+        coordinator = account_dict["coordinator"]
+        for toggle_switch_entity in toggle_switch_entities:
+            _LOGGER.debug(
+                "Creating toggle switch entity %s for %s with name %s",
+                hide_serial(toggle_switch_entity["id"]),
+                toggle_switch_entity["appliance_types"][0],
+                toggle_switch_entity["name"],
+            )
+            for controller in toggle_switch_entity.get("controllers", []):
+                text = controller.get("text")
+                instance = controller.get("instance")
+                toggle_switch = ToggleSwitch(
+                    coordinator, account_dict["login_obj"], toggle_switch_entity["id"], toggle_switch_entity["name"], text, instance,
+                )
+                _LOGGER.debug("Create toggle switch %s", toggle_switch) 
+                account_dict["entities"]["toggle_switch"].append(toggle_switch)
+                devices.append(toggle_switch)
+
     return await add_devices(
         hide_email(account),
         devices,
@@ -471,6 +493,94 @@ class SmartSwitch(CoordinatorEntity, SwitchDevice):
                 # If something failed any state is possible, fallback to a full refresh
                 return await self.coordinator.async_request_refresh()
         self._requested_power = power_on
+        self._requested_state_at = datetime.datetime.now(
+            datetime.timezone.utc
+        )  # must be set last so that previous getters work properly
+        self.schedule_update_ha_state()
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on."""
+        await self._set_state(True)
+
+    async def async_turn_off(self, **kwargs):  # pylint:disable=unused-argument
+        """Turn off."""
+        await self._set_state(False)
+
+
+class ToggleSwitch(CoordinatorEntity, SwitchDevice):
+    """Representation of a toggle switch controlled locally by an Echo."""
+
+    def __init__(self, coordinator, login, entity_id, name, text, instance,):
+        """Initialize alexa toggle switch entity."""
+        super().__init__(coordinator)
+        self.alexa_entity_id = entity_id
+        self._text = text
+        self._instance = instance
+        self._name = name + " " + text
+        self._login = login
+
+        # Store the requested state from the last call to _set_state
+        # This is so that no new network call is needed just to get values that are already known
+        # This is useful because refreshing the full state can take a bit when many switches are in play.
+        self._requested_state_at = None  # When was state last set in UTC
+        self._requested_power = None
+
+    @property
+    def name(self):
+        """Return name."""
+        return self._name
+
+    @property
+    def unique_id(self):
+        """Return unique id."""
+        return self.alexa_entity_id + "_" + self._text.lower().replace(" ", "_")
+
+    @property
+    def is_on(self):
+        """Return whether on."""
+        toggle = parse_toggle_from_coordinator(
+            self.coordinator, self.alexa_entity_id, self._requested_state_at
+        )
+        if toggle is None:
+            return self._requested_power if self._requested_power is not None else False
+        return toggle == "ON"
+
+    @property
+    def assumed_state(self) -> bool:
+        """Return whether state is assumed."""
+        last_refresh_success = (
+            self.coordinator.data and self.alexa_entity_id in self.coordinator.data
+        )
+        return not last_refresh_success
+
+    async def _set_state(self, toggle_on):
+        control_requests = [
+            {
+                "entityId": self.alexa_entity_id,
+                "entityType": "ENTITY",
+                "parameters": {
+                    "instance": self._instance,
+                    "action": "turnOn" if toggle_on else "turnOff"},
+            }
+        ]
+        data = { "controlRequests": control_requests }
+        api_response = await AlexaAPI._static_request(
+            "put", self._login, "/api/phoenix/state", data=data
+        )
+        _LOGGER.debug(
+            "%s: set_toggle_state response: %s for data: %s ",
+            hide_email(self._login.email),
+            await api_response.json(content_type=None) if api_response else None,
+            json.dumps(data),
+        )
+        response = await api_response.json(content_type=None) if api_response else None
+
+        control_responses = response.get("controlResponses", [])
+        for response in control_responses:
+            if not response.get("code") == "SUCCESS":
+                # If something failed any state is possible, fallback to a full refresh
+                return await self.coordinator.async_request_refresh()
+        self._requested_power = toggle_on
         self._requested_state_at = datetime.datetime.now(
             datetime.timezone.utc
         )  # must be set last so that previous getters work properly
