@@ -325,3 +325,8 @@ MODEL_IDS = {
     "AVU7CPPF2ZRAS": "Fire Tablet HD 8",
     "AWZZ5CVHX2CD": "Echo Show (Gen2)",
 }
+
+
+# List of legacy appliances from /nexus/v1/graphql API response
+# Use parse_graphql.py to extract updated list
+LEGACY_APPLIANCES = []

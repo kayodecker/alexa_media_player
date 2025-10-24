@@ -80,6 +80,7 @@ from .const import (
     MIN_TIME_BETWEEN_SCANS,
     SCAN_INTERVAL,
     STARTUP,
+    LEGACY_APPLIANCES,
 )
 from .exceptions import TimeoutException
 from .helpers import (
@@ -331,7 +332,7 @@ async def async_setup_entry(hass, config_entry):
             "http2": None,
             "auth_info": None,
             "second_account_index": 0,
-            "should_get_network": False,
+            "should_get_network": True,
             "options": {
                 CONF_INCLUDE_DEVICES: config_entry.data.get(CONF_INCLUDE_DEVICES, ""),
                 CONF_EXCLUDE_DEVICES: config_entry.data.get(CONF_EXCLUDE_DEVICES, ""),
@@ -503,9 +504,6 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
         if entities_to_monitor:
             tasks.append(get_entity_data(login_obj, list(entities_to_monitor)))
 
-        if should_get_network:
-            tasks.append(AlexaAPI.get_network_details(login_obj))
-
         try:
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
@@ -522,13 +520,7 @@ async def setup_alexa(hass, config_entry, login_obj: AlexaLogin):
                     _LOGGER.debug(
                         "Alexa entities have been loaded. Prepared for discovery."
                     )
-                    api_devices = optional_task_results.pop()
-                    if not api_devices:
-                        _LOGGER.warning(
-                            "%s: Alexa API returned an unexpected response while getting connected devices.",
-                            hide_email(email),
-                        )
-                    alexa_entities = parse_alexa_entities(api_devices)
+                    alexa_entities = parse_alexa_entities(LEGACY_APPLIANCES)
                     hass.data[DATA_ALEXAMEDIA]["accounts"][email]["devices"].update(
                         alexa_entities
                     )
