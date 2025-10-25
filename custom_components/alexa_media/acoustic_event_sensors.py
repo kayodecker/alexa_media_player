@@ -13,6 +13,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.const import STATE_UNAVAILABLE
 
 from .alexa_entity import parse_acoustic_event_from_coordinator
 
@@ -23,7 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
     """Base class for Alexa acoustic event sensors."""
 
-    detection_state_key: str = None  # Should be set by subclasses
+    detection_mode: str = None  # Should be set by subclasses
+    detection_state_key: str = None  # Will be derived from detection_mode
 
     def _get_detection_state(self, detection_state):
         return detection_state == "DETECTED"
@@ -31,9 +33,12 @@ class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if not self.detection_state_key:
-            _LOGGER.error("Detection state key not set for %s", self._attr_name)
+        if not self.detection_mode:
+            _LOGGER.error("Detection mode not set for %s", self._attr_name)
             return
+        self.detection_state_key = self.detection_mode + "DetectionState"
+        if not self.available:
+            return STATE_UNAVAILABLE
         detection_state = parse_acoustic_event_from_coordinator(
             self.coordinator, self.alexa_entity_id, self.detection_state_key
         )
@@ -55,13 +60,29 @@ class AcousticEventSensorBase(CoordinatorEntity, BinarySensorEntity):
     def is_on(self):
         """Return whether on."""
         return self._attr_is_on
+    
+    @property
+    def available(self) -> bool:
+        """Return the availability of the client."""
+        overallMode = parse_acoustic_event_from_coordinator(
+            self.coordinator, self.alexa_entity_id, "overallMode"
+        )
+        if overallMode != "ENABLED":
+            return False
+        
+        detectionModes = parse_acoustic_event_from_coordinator(
+            self.coordinator, self.alexa_entity_id, "detectionModes"
+        )
+        overallMode = detectionModes.get(self.detection_mode, {}).get("overallMode")
+        _LOGGER.debug("Detection mode %s for %s: %s", self.detection_mode, self.alexa_entity_id, overallMode)
+        return overallMode == "ENABLED"
 
 
 # Sensor classes for specific acoustic events
 class BabyCrySensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "babyCryDetectionState"
+    detection_mode: str = "babyCry"
 
     def __init__(
         self,
@@ -99,7 +120,7 @@ class BabyCrySensor(AcousticEventSensorBase):
 class BeepingApplianceSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "beepingApplianceDetectionState"
+    detection_mode: str = "beepingAppliance"
 
     def __init__(
         self,
@@ -137,7 +158,7 @@ class BeepingApplianceSensor(AcousticEventSensorBase):
 class CarbonMonoxideSirenSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "carbonMonoxideSirenDetectionState"
+    detection_mode: str = "carbonMonoxideSiren"
 
     def __init__(
         self,
@@ -175,7 +196,7 @@ class CarbonMonoxideSirenSensor(AcousticEventSensorBase):
 class CoughSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "coughDetectionState"
+    detection_mode: str = "cough"
 
     def __init__(
         self,
@@ -213,7 +234,7 @@ class CoughSensor(AcousticEventSensorBase):
 class DogBarkSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "dogBarkDetectionState"
+    detection_mode: str = "dogBark"
 
     def __init__(
         self,
@@ -251,7 +272,7 @@ class DogBarkSensor(AcousticEventSensorBase):
 class GlassBreakSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "glassBreakDetectionState"
+    detection_mode: str = "glassBreak"
 
     def __init__(
         self,
@@ -289,7 +310,7 @@ class GlassBreakSensor(AcousticEventSensorBase):
 class HumanPresenceSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "humanPresenceDetectionState"
+    detection_mode: str = "humanPresence"
 
     def __init__(
         self,
@@ -327,7 +348,7 @@ class HumanPresenceSensor(AcousticEventSensorBase):
 class RunningWaterSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "runningWaterDetectionState"
+    detection_mode: str = "runningWater"
 
     def __init__(
         self,
@@ -365,7 +386,7 @@ class RunningWaterSensor(AcousticEventSensorBase):
 class SmokeAlarmSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "smokeAlarmDetectionState"
+    detection_mode: str = "smokeAlarm"
 
     def __init__(
         self,
@@ -403,7 +424,7 @@ class SmokeAlarmSensor(AcousticEventSensorBase):
 class SmokeSirenSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "smokeSirenDetectionState"
+    detection_mode: str = "smokeSiren"
 
     def __init__(
         self,
@@ -441,7 +462,7 @@ class SmokeSirenSensor(AcousticEventSensorBase):
 class SnoreSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "snoreDetectionState"
+    detection_mode: str = "snore"
 
     def __init__(
         self,
@@ -479,7 +500,7 @@ class SnoreSensor(AcousticEventSensorBase):
 class WaterSoundsSensor(AcousticEventSensorBase):
     """An acoustic event sensor controlled by an Echo."""
 
-    detection_state_key = "waterSoundsDetectionState"
+    detection_mode: str = "waterSounds"
 
     def __init__(
         self,

@@ -209,6 +209,7 @@ def is_acoustic_event_sensor(appliance: dict[str, Any]) -> bool:
     """Is the given appliance an acoustic event sensor controlled locally by an Echo."""
     return (
         is_local(appliance)
+        and has_capability(appliance, "Alexa.AcousticEventSensor", "overallMode")
         and has_capability(appliance, "Alexa.AcousticEventSensor", "detectionModes")
         and (
             has_capability(appliance, "Alexa.AcousticEventSensor", "babyCryDetectionState")
@@ -608,11 +609,11 @@ def parse_illuminance_from_coordinator(
 
 
 def parse_acoustic_event_from_coordinator(
-    coordinator: DataUpdateCoordinator, entity_id: str, detection_mode: str
+    coordinator: DataUpdateCoordinator, entity_id: str, name: str
 ) -> Optional[str]:
     """Get the acoustic event detection state from the coordinator data."""
     value = parse_value_from_coordinator(
-        coordinator, entity_id, "Alexa.AcousticEventSensor", detection_mode
+        coordinator, entity_id, "Alexa.AcousticEventSensor", name
     )
     if value is not None:
         # If value is a dict with a 'value' key, return that, else return value itself
